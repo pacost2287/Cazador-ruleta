@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruleta Pro - Final</title>
+    <style>
+        body { margin: 0; background: #00562d; color: white; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; }
+        #grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 5px; flex-grow: 1; }
+        .num { display: flex; align-items: center; justify-content: center; font-weight: bold; border: 1px solid #fff; cursor: pointer; height: 50px; }
+        .num.zero { grid-column: span 3; background: #2e7d32; height: 60px; }
+        .red { background: #d32f2f; } .black { background: #000; }
+        #panel-info { background: #fff; color: #000; padding: 10px; border-top: 3px solid #000; }
+        #header-stats { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
+        #info { height: 130px; overflow-y: auto; font-size: 0.9em; border: 1px solid #ccc; padding: 5px; }
+        #zona-panel { display: flex; justify-content: space-around; background: #333; color: white; padding: 8px; margin-top: 5px; font-weight: bold; border-radius: 4px; gap: 5px; }
+        #sesion-panel { display: flex; align-items: center; justify-content: space-between; background: #e0e0e0; padding: 5px 10px; margin-top: 5px; border-radius: 4px; font-weight: bold; }
+        /* Nueva Barra Financiera */
+        #financiero { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 5px; }
+        .fin-box { background: #004d40; color: white; padding: 8px; border-radius: 4px; text-align: center; font-weight: bold; }
+        #saldo-total { grid-column: span 2; background: #1a237e; font-size: 1.2em; padding: 10px; }
+        #btn-reset { width: 100%; padding: 8px; background: #333; color: white; border: none; margin-top: 5px; }
+        .btn-mini { padding: 4px 8px; cursor: pointer; background: #d32f2f; color: white; border: none; border-radius: 3px; }
+        .repetido { color: #d32f2f; font-weight: bold; }
+        input { width: 60px; padding: 2px; text-align: center; }
+    </style>
+    <link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+
+</head>
+<body>
+
+<div id="grid"></div>
+<div id="panel-info">
+    <div id="header-stats">
+        <span onclick="cambiarModo()" style="cursor:pointer; text-decoration: underline;">Modo: <span id="textoModo">REGISTRO</span></span>
+        <span>Tiradas: <span id="totalTiros">0</span></span>
+    </div>
+    <div id="info">Toca un número para comenzar.</div>
+    <div id="zona-panel"></div>
+    <div id="sesion-panel">
+        <span>Sesión: <span id="tirosSesion">0</span></span>
+        <button class="btn-mini" onclick="resetSesion()">Reset Sesión</button>
+    </div>
+    
+    <!-- Barra Financiera -->
+    <div id="financiero">
+        <div class="fin-box">Cargar: <input type="number" id="inputCargar" onchange="actualizarSaldo('cargar')"></div>
+        <div class="fin-box">Retirar: <input type="number" id="inputRetirar" onchange="actualizarSaldo('retirar')"></div>
+        <div class="fin-box" id="saldo-total">Saldo: $0</div>
+    </div>
+
+    <button id="btn-reset" onclick="resetear()">Reset Total</button>
+</div>
+
+<script>
+    const grid = document.getElementById('grid'), info = document.getElementById('info'), displayTiros = document.getElementById('totalTiros'), zonaPanel = document.getElementById('zona-panel'), displaySesion = document.getElementById('tirosSesion'), displaySaldo = document.getElementById('saldo-total');
+    let baseDatos = JSON.parse(localStorage.getItem('ruletaData')) || {}, frec = JSON.parse(localStorage.getItem('frecuencias')) || {}, totalTiros = parseInt(localStorage.getItem('totalTiros')) || 0, modoConsulta = false, ultimo = null, tirosSesion = parseInt(localStorage.getItem('tirosSesion')) || 0, saldo = parseFloat(localStorage.getItem('saldo')) || 0;
+    
+    const zonasDefinicion = {
+        "Z/0": [0, 32, 15, 19, 4, 21, 2, 25, 26, 3, 35, 12, 28, 7, 29, 18, 22],
+        "Z/17": [17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 25, 2, 22, 4, 29, 15, 32, 0, 26],
+        "Z/5": [5, 24, 16, 33, 1, 20, 14, 31, 9, 10, 23, 8, 30, 11, 36, 13, 27, 6, 34, 17],
+        "Z/9": [9, 22, 18, 29, 7, 28, 12, 35, 3, 26, 14, 31, 20, 2, 33, 16, 24, 5, 10]
+    };
+
+    function dibujarPaño() {
+        grid.innerHTML = '';
+        for(let i=0; i<=36; i++) {
+            let div = document.createElement('div');
+            div.className = `num ${i===0 ? 'zero' : ([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36].includes(i) ? 'red' : 'black')}`;
+            div.innerText = i;
+            div.onclick = () => procesar(i);
+            grid.appendChild(div);
+        }
+    }
+
+    function procesar(n) {
+        if (!modoConsulta) {
+            frec[n] = (frec[n] || 0) + 1;
+            totalTiros++;
+            tirosSesion++;
+            if (ultimo !== null) {
+                baseDatos[ultimo] = baseDatos[ultimo] || [];
+                baseDatos[ultimo].push(n);
+            }
+            ultimo = n;
+            localStorage.setItem('frecuencias', JSON.stringify(frec));
+            localStorage.setItem('totalTiros', totalTiros);
+            localStorage.setItem('tirosSesion', tirosSesion);
+            localStorage.setItem('ruletaData', JSON.stringify(baseDatos));
+            displayTiros.innerText = totalTiros;
+            displaySesion.innerText = tirosSesion;
+            mostrarSucesiones(n);
+        } else {
+            mostrarSucesiones(n);
+        }
+    }
+
+    function actualizarSaldo(tipo) {
+        let val = parseFloat(document.getElementById(tipo === 'cargar' ? 'inputCargar' : 'inputRetirar').value) || 0;
+        if (tipo === 'cargar') saldo += val;
+        else saldo -= val;
+        localStorage.setItem('saldo', saldo);
+        displaySaldo.innerText = "Saldo: $" + saldo;
+        document.getElementById('inputCargar').value = "";
+        document.getElementById('inputRetirar').value = "";
+    }
+
+    function mostrarSucesiones(n) {
+        let lista = baseDatos[n] || [];
+        let conteo = {}, zonasContextuales = {"Z/0":0, "Z/17":0, "Z/5":0, "Z/9":0};
+        
+        lista.forEach(x => {
+            conteo[x] = (conteo[x] || 0) + 1;
+            for (let z in zonasDefinicion) if (zonasDefinicion[z].includes(x)) zonasContextuales[z]++;
+        });
+
+        let items = Object.keys(conteo).map(key => [key, conteo[key]]);
+        items.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+
+        let html = `<b>Tras el ${n}:</b><br>`;
+        items.forEach(item => {
+            let [key, val] = item;
+            html += `<div ${val >= 2 ? 'class="repetido"' : ''}>Número ${key}: ${val} veces</div>`;
+        });
+        
+        info.innerHTML = html || "Sin datos de sucesiones.";
+
+        zonaPanel.innerHTML = "";
+        let arr = Object.keys(zonasContextuales).map(k => ({n: k, v: zonasContextuales[k]}));
+        arr.sort((a, b) => b.v - a.v);
+        
+        arr.forEach((z, i) => {
+            let d = document.createElement("div");
+            d.innerText = z.n + ": " + z.v;
+            if (i === 0 && z.v > 0) {
+                d.style.backgroundColor = "#ffeb3b";
+                d.style.color = "#d32f2f";
+                d.style.padding = "2px 8px";
+                d.style.borderRadius = "4px";
+                d.style.fontWeight = "900";
+                d.style.border = "2px solid #d32f2f";
+            } else {
+                d.style.color = "#ffffff";
+                d.style.padding = "2px 8px";
+            }
+            zonaPanel.appendChild(d);
+        });
+    }
+
+    function cambiarModo() { modoConsulta = !modoConsulta; document.getElementById('textoModo').innerText = modoConsulta ? "CONSULTA" : "REGISTRO"; }
+    function resetSesion() { tirosSesion = 0; localStorage.setItem('tirosSesion', 0); displaySesion.innerText = 0; }
+    function resetear() { if(confirm("¿Borrar todo?")) { localStorage.clear(); location.reload(); } }
+    
+    dibujarPaño();
+    displayTiros.innerText = totalTiros;
+    displaySesion.innerText = tirosSesion;
+    displaySaldo.innerText = "Saldo: $" + saldo;
+</script>
+</body>
+  </html>
