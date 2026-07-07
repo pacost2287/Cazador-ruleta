@@ -1,0 +1,15 @@
+{
+  "name": "Ruleta Pro",
+  "short_name": "Ruleta",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#00562d",
+  "theme_color": "#00562d",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
